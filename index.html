@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>沿海城市潮汐防洪推演系统</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div class="brand">
+      <span class="logo">🌊</span>
+      <div>
+        <h1>沿海城市潮汐防洪推演系统</h1>
+        <div class="sub">降雨 · 潮位 · 河道水位 · 泵站负荷 · 闸门状态 一体化推演（概念原型，不作工程设计依据）</div>
+      </div>
+    </div>
+    <div class="top-ctl">
+      <label>情景
+        <select id="scenarioSel"></select>
+      </label>
+      <button id="btnCompare" class="ghost">多方案对比</button>
+      <button id="btnExport" class="ghost">导出</button>
+      <button id="btnImport" class="ghost">导入</button>
+      <input type="file" id="fileImport" accept="application/json" hidden>
+      <button id="btnCrash" class="ghost warn" title="模拟意外断开">模拟断连</button>
+      <button id="btnReset" class="ghost">重置推演</button>
+    </div>
+  </header>
+
+  <main id="main">
+    <aside id="left">
+      <div class="panel" id="schemePanel">
+        <div class="panel-h"><span>调度方案</span></div>
+        <div id="schemeList" class="scheme-list"></div>
+        <div class="row">
+          <button id="btnCopyScheme" class="ghost small">复制当前方案</button>
+          <button id="btnBaseScheme" class="ghost small">恢复基准方案</button>
+        </div>
+      </div>
+
+      <div class="panel" id="controlPanel">
+        <div class="panel-h"><span>工程调度</span><span id="ctlSchemeName" class="tag"></span></div>
+        <div class="ctl-scroll">
+          <h3>河口挡潮闸</h3>
+          <div id="g0Ctl" class="ctl-group"></div>
+          <h3>街区自排闸</h3>
+          <div id="gDrainCtl" class="ctl-group"></div>
+          <h3>泵站组合</h3>
+          <div id="pumpCtl" class="ctl-group"></div>
+          <h3>分洪顺序</h3>
+          <div id="divCtl" class="ctl-group"></div>
+          <p class="hint">运行中调整后自动重新推演全时段，淹深与到达时间立即更新；按空格播放/暂停。</p>
+        </div>
+      </div>
+    </aside>
+
+    <section id="center">
+      <div id="mapWrap">
+        <canvas id="map" width="760" height="700"></canvas>
+        <div id="mapLegend" class="legend">
+          <span><i style="background:#9fd356"></i>&lt;15cm</span>
+          <span><i style="background:#f5d042"></i>15–27cm</span>
+          <span><i style="background:#f59045"></i>27–45cm</span>
+          <span><i style="background:#e25252"></i>≥45cm</span>
+          <span><i style="background:#4dd08b;border-radius:50%"></i>泵站运行</span>
+          <span><i style="background:#e25252;border-radius:50%"></i>过载/倒灌</span>
+          <span><i style="background:#177093"></i>河道</span>
+          <span><i style="background:#e0b13d"></i>闸门</span>
+        </div>
+        <div id="mapTip" class="map-tip" hidden></div>
+        <div id="mapBadge" class="map-badge">步长 6 分钟 · 悬停查看设施 · 点击曲线/告警跳转</div>
+      </div>
+
+      <div id="dashPanel" class="panel">
+        <div class="panel-h"><span>过程曲线（与时间轴联动）</span>
+          <span class="curve-tabs">
+            <button data-curve="hydro" class="tab active">水情</button>
+            <button data-curve="eng" class="tab">工程</button>
+          </span>
+        </div>
+        <canvas id="chart" width="1400" height="190"></canvas>
+      </div>
+
+      <div id="timelinePanel" class="panel">
+        <div class="tl-row">
+          <button id="btnPlay" class="play">▶</button>
+          <span id="clock" class="clock">--</span>
+          <div class="speed-ctl">
+            速度
+            <button data-sp="1" class="sp active">1×</button>
+            <button data-sp="4" class="sp">4×</button>
+            <button data-sp="16" class="sp">16×</button>
+            <button data-sp="60" class="sp">60×</button>
+          </div>
+          <span id="tlStatus" class="tl-status"></span>
+        </div>
+        <canvas id="timeline" width="1400" height="56"></canvas>
+        <div id="tlMarks" class="tl-marks"></div>
+      </div>
+    </section>
+
+    <aside id="right">
+      <div class="panel tabs-panel">
+        <div class="right-tabs">
+          <button data-tab="alerts" class="rtab active">告警与对策</button>
+          <button data-tab="metrics" class="rtab">街区指标</button>
+          <button data-tab="compare" class="rtab">方案比较</button>
+        </div>
+        <div id="tabAlerts" class="tab-body"></div>
+        <div id="tabMetrics" class="tab-body" hidden></div>
+        <div id="tabCompare" class="tab-body" hidden></div>
+      </div>
+    </aside>
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <div id="resumeModal" class="modal" hidden>
+    <div class="modal-box">
+      <h2>检测到未结束的推演</h2>
+      <p id="resumeInfo"></p>
+      <div class="modal-actions">
+        <button id="btnResume" class="primary">恢复推演</button>
+        <button id="btnDiscard" class="ghost">放弃并重新开始</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/geo.js"></script>
+<script src="js/sim-core.js"></script>
+<script src="js/sim-engine.js"></script>
+<script src="js/sim-integrate.js"></script>
+<script src="js/sim-run.js"></script>
+<script src="js/advisor.js"></script>
+<script src="js/store.js"></script>
+<script src="js/app-state.js"></script>
+<script src="js/ui/charts.js"></script>
+<script src="js/ui/map.js"></script>
+<script src="js/ui/panels.js"></script>
+<script src="js/ui/panels2.js"></script>
+<script src="js/app-ui.js"></script>
+</body>
+</html>
